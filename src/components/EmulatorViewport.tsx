@@ -447,7 +447,6 @@ export const EmulatorViewport: React.FC<EmulatorViewportProps> = ({
             // do RetroArch por cima da tela do aplicativo.
             menu_driver: 'null',
             rgui_show_start_screen: false,
-            quit_on_close_content: true,
             audio_mute_enable: muted,
             audio_sync: true,
             log_verbosity: true,
