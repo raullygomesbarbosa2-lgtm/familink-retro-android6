@@ -217,7 +217,7 @@ function AppContent() {
         </div>
       )}
 
-      <main className="flex-1 max-w-[1400px] w-full mx-auto px-4 sm:px-6 py-6">
+      <main className="flex-1 min-w-0 max-w-[1400px] w-full mx-auto px-2 sm:px-6 py-3 sm:py-6">
         {activeTab === 'console' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
