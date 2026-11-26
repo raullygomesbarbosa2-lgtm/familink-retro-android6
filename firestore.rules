@@ -1,0 +1,300 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net (Default-Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core Primitives
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Entity Validators
+    function isValidUserPrivate(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'gamesPlayed', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'gamesPlayed', 'createdAt', 'updatedAt'])
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 512))
+        && data.gamesPlayed is int && data.gamesPlayed >= 0 && data.gamesPlayed <= 1000000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPublicProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'photoURL', 'updatedAt'])
+        && data.uid == request.auth.uid
+        && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 512))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidNetplayRoom(data) {
+      return data.keys().hasAll([
+          'roomCode', 'hostUid', 'hostName', 'guestUid', 'guestName',
+          'mode', 'consoleId', 'romName', 'romHash', 'romRegion', 'romSize',
+          'guestRomHash', 'guestRomRegion', 'guestAccessStatus',
+          'status', 'inputDelay', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'roomCode', 'hostUid', 'hostName', 'guestUid', 'guestName',
+          'mode', 'consoleId', 'romName', 'romHash', 'romRegion', 'romSize',
+          'guestRomHash', 'guestRomRegion', 'guestAccessStatus',
+          'status', 'inputDelay', 'createdAt', 'updatedAt'
+        ])
+        && data.roomCode is string && data.roomCode.size() >= 4 && data.roomCode.size() <= 16 && data.roomCode.matches('^[A-Z0-9]+$')
+        && isValidId(data.hostUid)
+        && data.hostName is string && data.hostName.size() >= 1 && data.hostName.size() <= 80
+        && data.guestUid is string && data.guestUid.size() <= 128 && (data.guestUid == '' || isValidId(data.guestUid))
+        && data.guestName is string && data.guestName.size() <= 80
+        && data.mode in ['remote', 'local']
+        && data.consoleId in [
+          'nes', 'fds', 'snes', 'gb', 'gbc', 'gba', 'vb', 'gw',
+          'megadrive', 'sega32x', 'segacd', 'mastersystem', 'gamegear', 'sg1000',
+          'pce', 'ngp', 'arcade', 'arcade2000', 'arcade2003', 'arcade2003plus', 'arcade2010', 'arcade2013', 'arcade2013plus', 'neogeo',
+          'lynx', 'wonderswan', 'colecovision', 'vectrex', 'odyssey2', 'channelf', '3do',
+          'c64', 'pc88', 'sharpx1', 'thomson', 'p2000', 'mac', 'bk', 'galaksija',
+          'pico8', 'tic80', 'wasm4', 'arduboy', 'uzebox', 'doom'
+        ]
+        && data.romName is string && data.romName.size() >= 1 && data.romName.size() <= 140
+        && data.romHash is string && data.romHash.size() == 64 && data.romHash.matches('^[a-f0-9]{64}$')
+        && data.romRegion in ['USA', 'JPN', 'EUR', 'WORLD']
+        && data.romSize is int && data.romSize >= 16 && data.romSize <= 67108864
+        && data.guestRomHash is string && data.guestRomHash.size() <= 64
+        && data.guestRomRegion in ['NONE', 'USA', 'JPN', 'EUR', 'WORLD']
+        && data.guestAccessStatus in ['empty', 'pending', 'approved', 'denied']
+        && data.status in ['waiting', 'playing', 'paused', 'closed']
+        && data.inputDelay is int && data.inputDelay >= 0 && data.inputDelay <= 8
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRoomSignal(data) {
+      return data.keys().hasAll(['senderUid', 'hostUid', 'guestUid', 'targetRole', 'type', 'payload', 'createdAt'])
+        && data.keys().hasOnly(['senderUid', 'hostUid', 'guestUid', 'targetRole', 'type', 'payload', 'createdAt'])
+        && data.senderUid == request.auth.uid
+        && isValidId(data.senderUid)
+        && isValidId(data.hostUid)
+        && data.guestUid is string && data.guestUid.size() <= 128 && (data.guestUid == '' || isValidId(data.guestUid))
+        && data.targetRole in ['host', 'guest']
+        && data.type in ['offer', 'answer', 'ice']
+        && data.payload is string && data.payload.size() >= 2 && data.payload.size() <= 16384
+        && data.createdAt is timestamp;
+    }
+
+    function isValidRoomMessage(data) {
+      return data.keys().hasAll(['senderUid', 'hostUid', 'guestUid', 'senderName', 'senderRole', 'text', 'createdAt'])
+        && data.keys().hasOnly(['senderUid', 'hostUid', 'guestUid', 'senderName', 'senderRole', 'text', 'createdAt'])
+        && data.senderUid == request.auth.uid
+        && isValidId(data.senderUid)
+        && isValidId(data.hostUid)
+        && data.guestUid is string && data.guestUid.size() <= 128 && (data.guestUid == '' || isValidId(data.guestUid))
+        && data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 80
+        && data.senderRole in ['P1', 'P2']
+        && data.text is string && data.text.size() >= 1 && data.text.size() <= 300
+        && data.createdAt is timestamp;
+    }
+
+    // Connection check doc
+    match /test/connection {
+      allow get: if isSignedIn();
+    }
+
+    // Private User PII Collection
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow list: if false;
+      allow create: if isSignedIn() && isValidId(userId) && request.auth.uid == userId
+        && isValidUserPrivate(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && isValidId(userId) && request.auth.uid == userId
+        && isValidUserPrivate(incoming())
+        && incoming().uid == existing().uid
+        && incoming().email == existing().email
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'gamesPlayed', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Public Gamer Profile Collection (No PII)
+    match /publicProfiles/{userId} {
+      allow get: if isSignedIn() && isValidId(userId);
+      allow list: if false;
+      allow create: if isSignedIn() && isValidId(userId) && request.auth.uid == userId
+        && isValidPublicProfile(incoming())
+        && incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && isValidId(userId) && request.auth.uid == userId
+        && isValidPublicProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // Netplay Rooms
+    match /rooms/{roomId} {
+      allow get: if isSignedIn() && isValidId(roomId);
+      allow list: if isSignedIn() && (
+        existing().status == 'waiting' ||
+        existing().hostUid == request.auth.uid ||
+        existing().guestUid == request.auth.uid
+      );
+      allow create: if isSignedIn() && isValidId(roomId)
+        && isValidNetplayRoom(incoming())
+        && incoming().hostUid == request.auth.uid
+        && incoming().guestUid == ''
+        && incoming().guestName == ''
+        && incoming().guestRomHash == ''
+        && incoming().guestRomRegion == 'NONE'
+        && incoming().guestAccessStatus == 'empty'
+        && incoming().status == 'waiting'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isSignedIn() && isValidId(roomId)
+        && existing().status != 'closed'
+        && isValidNetplayRoom(incoming())
+        && incoming().hostUid == existing().hostUid
+        && incoming().roomCode == existing().roomCode
+        && incoming().mode == existing().mode
+        && incoming().consoleId == existing().consoleId
+        && incoming().romName == existing().romName
+        && incoming().romHash == existing().romHash
+        && incoming().romRegion == existing().romRegion
+        && incoming().romSize == existing().romSize
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: P2 requests access (MUST match exact ROM SHA-256 hash AND Region!)
+          (
+            request.auth.uid != existing().hostUid
+            && (existing().guestUid == '' || existing().guestUid == request.auth.uid)
+            && incoming().guestUid == request.auth.uid
+            && incoming().guestRomHash == existing().romHash
+            && incoming().guestRomRegion == existing().romRegion
+            && incoming().guestAccessStatus == 'pending'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['guestUid', 'guestName', 'guestRomHash', 'guestRomRegion', 'guestAccessStatus', 'updatedAt'])
+          )
+          ||
+          // Action 2: P2 leaves room
+          (
+            request.auth.uid == existing().guestUid
+            && incoming().guestUid == ''
+            && incoming().guestName == ''
+            && incoming().guestRomHash == ''
+            && incoming().guestRomRegion == 'NONE'
+            && incoming().guestAccessStatus == 'empty'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['guestUid', 'guestName', 'guestRomHash', 'guestRomRegion', 'guestAccessStatus', 'updatedAt'])
+          )
+          ||
+          // Action 3: P1 Host approves or denies existing P2, OR kicks P2 cleanly
+          (
+            request.auth.uid == existing().hostUid
+            && (
+              (
+                existing().guestUid != ''
+                && incoming().guestUid == existing().guestUid
+                && incoming().guestName == existing().guestName
+                && incoming().guestRomHash == existing().guestRomHash
+                && incoming().guestRomRegion == existing().guestRomRegion
+                && incoming().guestAccessStatus in ['approved', 'denied', 'pending']
+                && incoming().diff(existing()).affectedKeys().hasOnly(['guestAccessStatus', 'status', 'updatedAt'])
+              )
+              ||
+              (
+                incoming().guestUid == ''
+                && incoming().guestName == ''
+                && incoming().guestRomHash == ''
+                && incoming().guestRomRegion == 'NONE'
+                && incoming().guestAccessStatus == 'empty'
+                && incoming().diff(existing()).affectedKeys().hasOnly(['guestUid', 'guestName', 'guestRomHash', 'guestRomRegion', 'guestAccessStatus', 'status', 'updatedAt'])
+              )
+            )
+          )
+          ||
+          // Action 4: P1 Host updates game status or input delay
+          (
+            request.auth.uid == existing().hostUid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'inputDelay', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isSignedIn() && isValidId(roomId) && existing().hostUid == request.auth.uid;
+
+      // WebRTC Signaling Subcollection (Master Gate checks parent room)
+      match /signals/{signalId} {
+        allow get: if isSignedIn() && isValidId(roomId) && isValidId(signalId)
+          && (
+            get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid == request.auth.uid ||
+            get(/databases/$(database)/documents/rooms/$(roomId)).data.guestUid == request.auth.uid
+          );
+        allow list: if isSignedIn() && (
+          existing().hostUid == request.auth.uid ||
+          existing().guestUid == request.auth.uid
+        );
+        allow create: if isSignedIn() && isValidId(roomId) && isValidId(signalId)
+          && isValidRoomSignal(incoming())
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/rooms/$(roomId))
+          && incoming().hostUid == get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid
+          && incoming().guestUid == get(/databases/$(database)/documents/rooms/$(roomId)).data.guestUid
+          && (
+            request.auth.uid == get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid ||
+            request.auth.uid == get(/databases/$(database)/documents/rooms/$(roomId)).data.guestUid
+          );
+        allow update: if false;
+        allow delete: if isSignedIn() && isValidId(roomId) && isValidId(signalId)
+          && (
+            get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid == request.auth.uid ||
+            get(/databases/$(database)/documents/rooms/$(roomId)).data.guestUid == request.auth.uid
+          );
+      }
+
+      // Room Chat Subcollection (Master Gate checks parent room)
+      match /messages/{messageId} {
+        allow get: if isSignedIn() && isValidId(roomId) && isValidId(messageId)
+          && (
+            get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid == request.auth.uid ||
+            get(/databases/$(database)/documents/rooms/$(roomId)).data.guestUid == request.auth.uid
+          );
+        allow list: if isSignedIn() && (
+          existing().hostUid == request.auth.uid ||
+          existing().guestUid == request.auth.uid
+        );
+        allow create: if isSignedIn() && isValidId(roomId) && isValidId(messageId)
+          && isValidRoomMessage(incoming())
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/rooms/$(roomId))
+          && incoming().hostUid == get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid
+          && incoming().guestUid == get(/databases/$(database)/documents/rooms/$(roomId)).data.guestUid
+          && (
+            (request.auth.uid == get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid && incoming().senderRole == 'P1') ||
+            (request.auth.uid == get(/databases/$(database)/documents/rooms/$(roomId)).data.guestUid && incoming().senderRole == 'P2')
+          );
+        allow update: if false;
+        allow delete: if isSignedIn() && isValidId(roomId) && isValidId(messageId)
+          && get(/databases/$(database)/documents/rooms/$(roomId)).data.hostUid == request.auth.uid;
+      }
+    }
+  }
+}

@@ -1,0 +1,327 @@
+{
+  "entities": {
+    "UserPrivate": {
+      "title": "UserPrivate",
+      "description": "Private user account profile containing email PII, strictly owner-readable and owner-writable.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 254
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "gamesPlayed": {
+          "type": "integer"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "displayName", "gamesPlayed", "createdAt", "updatedAt"]
+    },
+    "PublicProfile": {
+      "title": "PublicProfile",
+      "description": "Public gamer profile without PII (no email/phone) for multiplayer room display.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "displayName", "updatedAt"]
+    },
+    "NetplayRoom": {
+      "title": "NetplayRoom",
+      "description": "Multiplayer retro emulator room with host P2 access control and strict SHA-256 + Region ROM enforcement.",
+      "type": "object",
+      "properties": {
+        "roomCode": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 16,
+          "pattern": "^[A-Z0-9]+$"
+        },
+        "hostUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "hostName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "guestUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "guestName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["remote", "local"]
+        },
+        "consoleId": {
+          "type": "string",
+          "enum": [
+            "nes",
+            "fds",
+            "snes",
+            "gb",
+            "gbc",
+            "gba",
+            "vb",
+            "gw",
+            "megadrive",
+            "sega32x",
+            "segacd",
+            "mastersystem",
+            "gamegear",
+            "sg1000",
+            "pce",
+            "ngp",
+            "arcade",
+            "arcade2000",
+            "arcade2003",
+            "arcade2003plus",
+            "arcade2010",
+            "arcade2013",
+            "arcade2013plus",
+            "neogeo",
+            "lynx",
+            "wonderswan",
+            "colecovision",
+            "vectrex",
+            "odyssey2",
+            "channelf",
+            "3do",
+            "c64",
+            "pc88",
+            "sharpx1",
+            "thomson",
+            "p2000",
+            "mac",
+            "bk",
+            "galaksija",
+            "pico8",
+            "tic80",
+            "wasm4",
+            "arduboy",
+            "uzebox",
+            "doom"
+          ]
+        },
+        "romName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 140
+        },
+        "romHash": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "romRegion": {
+          "type": "string",
+          "enum": ["USA", "JPN", "EUR", "WORLD"]
+        },
+        "romSize": {
+          "type": "integer"
+        },
+        "guestRomHash": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "guestRomRegion": {
+          "type": "string",
+          "enum": ["NONE", "USA", "JPN", "EUR", "WORLD"]
+        },
+        "guestAccessStatus": {
+          "type": "string",
+          "enum": ["empty", "pending", "approved", "denied"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["waiting", "playing", "paused", "closed"]
+        },
+        "inputDelay": {
+          "type": "integer"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "roomCode",
+        "hostUid",
+        "hostName",
+        "guestUid",
+        "guestName",
+        "mode",
+        "consoleId",
+        "romName",
+        "romHash",
+        "romRegion",
+        "romSize",
+        "guestRomHash",
+        "guestRomRegion",
+        "guestAccessStatus",
+        "status",
+        "inputDelay",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "RoomSignal": {
+      "title": "RoomSignal",
+      "description": "WebRTC signaling payload (SDP offer/answer and ICE candidates) scoped to verified room participants.",
+      "type": "object",
+      "properties": {
+        "senderUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "hostUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "guestUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "targetRole": {
+          "type": "string",
+          "enum": ["host", "guest"]
+        },
+        "type": {
+          "type": "string",
+          "enum": ["offer", "answer", "ice"]
+        },
+        "payload": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 16384
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["senderUid", "hostUid", "guestUid", "targetRole", "type", "payload", "createdAt"]
+    },
+    "RoomMessage": {
+      "title": "RoomMessage",
+      "description": "Real-time room chat message between P1 Host and P2 Guest.",
+      "type": "object",
+      "properties": {
+        "senderUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "hostUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "guestUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "senderName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "senderRole": {
+          "type": "string",
+          "enum": ["P1", "P2"]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["senderUid", "hostUid", "guestUid", "senderName", "senderRole", "text", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserPrivate" },
+      "description": "Private user documents storing email PII and play counters."
+    },
+    "/publicProfiles/{userId}": {
+      "schema": { "$ref": "#/entities/PublicProfile" },
+      "description": "Public display profiles without PII."
+    },
+    "/rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/NetplayRoom" },
+      "description": "Active and historical multiplayer Netplay rooms."
+    },
+    "/rooms/{roomId}/signals/{signalId}": {
+      "schema": { "$ref": "#/entities/RoomSignal" },
+      "description": "WebRTC signaling documents for P1 and P2 peer connection."
+    },
+    "/rooms/{roomId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/RoomMessage" },
+      "description": "In-room chat messages for P1 and P2."
+    }
+  }
+}

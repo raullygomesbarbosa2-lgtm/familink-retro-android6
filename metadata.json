@@ -1,0 +1,6 @@
+{
+  "name": "FamiLink Netplay — Emulador Retrô Solo e Multiplayer",
+  "description": "Emulador de console retrô 8-bit com modo Solo, Netplay Local e Multiplayer à Distância via Firebase, controle de acesso P1/P2 e verificação rigorosa de ROM e Região (Japão vs EUA).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
