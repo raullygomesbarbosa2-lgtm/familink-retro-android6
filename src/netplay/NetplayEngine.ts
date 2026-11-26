@@ -239,12 +239,19 @@ export class NetplayTransport {
 
   private setupWebRtc(): void {
     if (typeof RTCPeerConnection === 'undefined') return;
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-      ],
-    });
+    let pc: RTCPeerConnection;
+    try {
+      pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ],
+      });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'WebRTC indisponível';
+      this.callbacks.onPeerError?.(`Este navegador não conseguiu iniciar WebRTC (${reason}). A sala permanece aberta; tente o relay ou outro navegador.`);
+      return;
+    }
     this.pc = pc;
 
     pc.onicecandidate = (event) => {

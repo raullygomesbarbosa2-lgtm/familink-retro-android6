@@ -260,28 +260,21 @@ export function subscribeToRoom(
   );
 }
 
-export function subscribeToWaitingRooms(
-  onData: (rooms: NetplayRoomDoc[]) => void
-): Unsubscribe {
+export async function fetchWaitingRooms(): Promise<NetplayRoomDoc[]> {
   const path = 'rooms';
   const q = query(
     collection(db, 'rooms'),
     where('status', '==', 'waiting'),
     limit(20)
   );
-  return onSnapshot(
-    q,
-    (snap) => {
-      const list: NetplayRoomDoc[] = [];
-      snap.forEach((d) => {
-        list.push(d.data() as NetplayRoomDoc);
-      });
-      onData(list);
-    },
-    (error) => {
-      handleFirestoreError(error, OperationType.LIST, path);
-    }
-  );
+  try {
+    const snap = await getDocs(q);
+    const list: NetplayRoomDoc[] = [];
+    snap.forEach((d) => list.push(d.data() as NetplayRoomDoc));
+    return list;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+  }
 }
 
 export async function sendRoomMessage(params: {

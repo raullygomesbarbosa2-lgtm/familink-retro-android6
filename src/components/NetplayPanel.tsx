@@ -30,7 +30,7 @@ import {
   hostUpdateGuestAccess,
   hostUpdateRoomSettings,
   closeHostRoom,
-  subscribeToWaitingRooms,
+  fetchWaitingRooms,
   subscribeToRoomMessages,
   sendRoomMessage,
   type NetplayRoomDoc,
@@ -79,6 +79,7 @@ export const NetplayPanel: React.FC<NetplayPanelProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [messages, setMessages] = useState<RoomMessageDoc[]>([]);
   const [chatText, setChatText] = useState('');
+  const [refreshingRooms, setRefreshingRooms] = useState(false);
 
   useEffect(() => {
     if (initialRoomCode) {
@@ -86,17 +87,41 @@ export const NetplayPanel: React.FC<NetplayPanelProps> = ({
     }
   }, [initialRoomCode]);
 
-  // Subscribe to waiting rooms when signed in and not inside a room
+  // On low-memory/older mobile browsers, don't keep a Firestore realtime
+  // listener open for the room directory. Load once when the lobby opens;
+  // the user can refresh explicitly. The active room still gets realtime updates.
   useEffect(() => {
+    let cancelled = false;
     if (!user || activeRoom) {
       setWaitingRooms([]);
       return;
     }
-    const unsub = subscribeToWaitingRooms((rooms) => {
+    setRefreshingRooms(true);
+    void fetchWaitingRooms()
+      .then((rooms) => {
+        if (!cancelled) setWaitingRooms(rooms.filter((r) => r.mode === mode && r.hostUid !== user.uid));
+      })
+      .catch((err) => {
+        if (!cancelled) setLookupError(err instanceof Error ? err.message : 'Não foi possível carregar salas.');
+      })
+      .finally(() => {
+        if (!cancelled) setRefreshingRooms(false);
+      });
+    return () => { cancelled = true; };
+  }, [user?.uid, activeRoom?.roomCode, mode]);
+
+  const handleRefreshRooms = async () => {
+    if (!user || refreshingRooms) return;
+    setRefreshingRooms(true);
+    try {
+      const rooms = await fetchWaitingRooms();
       setWaitingRooms(rooms.filter((r) => r.mode === mode && r.hostUid !== user.uid));
-    });
-    return () => unsub();
-  }, [user, activeRoom, mode]);
+    } catch (err) {
+      setLookupError(err instanceof Error ? err.message : 'Não foi possível atualizar as salas.');
+    } finally {
+      setRefreshingRooms(false);
+    }
+  };
 
   // Subscribe to room chat when inside an active room
   useEffect(() => {
@@ -676,9 +701,18 @@ export const NetplayPanel: React.FC<NetplayPanelProps> = ({
             )}
 
             {/* Open Waiting Rooms List */}
-            {waitingRooms.length > 0 && (
+            {(
               <div className="pt-2 border-t border-white/10 space-y-2">
-                <div className="text-xs font-semibold text-gray-300">Salas Abertas ({waitingRooms.length})</div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-xs font-semibold text-gray-300">Salas Abertas ({waitingRooms.length})</div>
+                  <button type="button" onClick={() => void handleRefreshRooms()} disabled={refreshingRooms}
+                    className="px-2.5 py-1.5 rounded bg-[#181D29] border border-white/10 text-[11px] text-gray-200 disabled:opacity-50">
+                    {refreshingRooms ? 'Atualizando…' : 'Atualizar'}
+                  </button>
+                </div>
+                {waitingRooms.length === 0 ? (
+                  <p className="text-[11px] text-gray-500">{refreshingRooms ? 'Buscando salas…' : 'Nenhuma sala aberta encontrada.'}</p>
+                ) : (
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {waitingRooms.map((rm) => {
                     const match = validateRomMatch(rm.romHash, rm.romRegion, activeRom);
@@ -714,6 +748,7 @@ export const NetplayPanel: React.FC<NetplayPanelProps> = ({
                     );
                   })}
                 </div>
+                )}
               </div>
             )}
           </div>
