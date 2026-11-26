@@ -190,10 +190,14 @@ export async function parseRomFile(
         return entryName.endsWith('.bin') || /\.(rom|ic\d+|prg|chr|gfx|u\d+|s\d+)$/i.test(entryName);
       });
 
-      // Um ZIP de console com uma única ROM (ex.: Streets of Rage II.zip
-      // contendo Streets of Rage II.sms) precisa ser extraído. Se vier junto
-      // com várias peças, preservamos o pacote: esse é o formato dos jogos Arcade.
-      if (supportedConsoleEntries.length === 1 && arcadeLikeParts.length === 0) {
+      // Quando o usuário escolhe um console de cartucho, a extensão selecionada
+      // é a autoridade: extraímos a ROM correspondente mesmo que o ZIP traga
+      // README/capas. No modo automático, preservamos pacotes com peças típicas
+      // de Arcade para não os confundir com uma ROM de console.
+      const shouldExtractConsoleRom = requested
+        ? supportedConsoleEntries.length === 1
+        : supportedConsoleEntries.length === 1 && arcadeLikeParts.length === 0;
+      if (shouldExtractConsoleRom) {
         const entry = supportedConsoleEntries[0];
         const extracted = new Uint8Array(await entry.async('arraybuffer'));
         if (extracted.length >= 16) {

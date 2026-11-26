@@ -442,6 +442,13 @@ export const EmulatorViewport: React.FC<EmulatorViewportProps> = ({
             }
           },
           retroarchConfig: {
+            // O RetroArch continua sendo apenas o motor WASM por baixo do canvas.
+            // O driver null impede que uma falha de conteúdo abra a interface/menu
+            // do RetroArch por cima da tela do aplicativo.
+            menu_driver: 'null',
+            menu_show_start_screen: false,
+            rgui_show_start_screen: false,
+            quit_on_close_content: true,
             audio_mute_enable: muted,
             audio_sync: true,
             log_verbosity: true,
@@ -453,8 +460,8 @@ export const EmulatorViewport: React.FC<EmulatorViewportProps> = ({
             // Desempenho 30 FPS (Celular Fraco) vs 60 FPS (Celular Forte)
             video_swap_interval: fpsMode === 30 ? 2 : 1,
             video_max_swapchain_images: fpsMode === 30 ? 2 : 3,
-            // Bloqueia completamente tela inicial, menu, atalhos de controle, fonte e banners OSD do RetroArch
-            rgui_show_start_screen: false,
+            // Bloqueia banners OSD e atalhos; o menu_driver null já impede a tela do RetroArch.
+
             video_font_enable: false,
             notification_show_autoconfig: false,
             notification_show_cheats_applied: false,
