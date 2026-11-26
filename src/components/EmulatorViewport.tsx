@@ -446,7 +446,6 @@ export const EmulatorViewport: React.FC<EmulatorViewportProps> = ({
             // O driver null impede que uma falha de conteúdo abra a interface/menu
             // do RetroArch por cima da tela do aplicativo.
             menu_driver: 'null',
-            menu_show_start_screen: false,
             rgui_show_start_screen: false,
             quit_on_close_content: true,
             audio_mute_enable: muted,
