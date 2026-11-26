@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { Unlock, Lock, Wifi, ShieldCheck, DoorOpen } from 'lucide-react';
 import { auth, logoutUser, syncUserProfile } from './firebase';
