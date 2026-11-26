@@ -4,8 +4,10 @@ import { Unlock, Lock, Wifi, ShieldCheck, DoorOpen } from 'lucide-react';
 import { auth, logoutUser, syncUserProfile } from './firebase';
 import { AuthDialog } from './components/AuthDialog';
 import { REGION_LABELS, type ParsedRom } from './emulator/romUtils';
+import { restoreMobileRom, saveMobileRom } from './emulator/mobileSession';
 import {
   subscribeToRoom,
+  fetchRoomByCode,
   hostUpdateGuestAccess,
   closeHostRoom,
   leaveRoomAsGuest,
@@ -49,11 +51,23 @@ function AppContent() {
   const [initialInviteCode, setInitialInviteCode] = useState('');
 
   const transportRef = useRef<NetplayTransport | null>(null);
+  const mobileResumeTabRef = useRef<'remote' | 'local' | null>(null);
+  const mobileRestoreDoneRef = useRef(false);
   const [transportInstance, setTransportInstance] = useState<NetplayTransport | null>(null);
+
+  const isAndroid6Phone = typeof navigator !== 'undefined' && /Android 6\.0/i.test(navigator.userAgent);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = (params.get('room') || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const mobileTab = params.get('mobileTab');
+    if (mobileTab === 'remote' || mobileTab === 'local') {
+      mobileResumeTabRef.current = mobileTab;
+      setActiveTab(mobileTab);
+      params.delete('mobileTab');
+      const cleanUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}${window.location.hash}`;
+      window.history.replaceState(null, '', cleanUrl);
+    }
     if (code) {
       setInitialInviteCode(code);
       setActiveTab('remote');
@@ -70,6 +84,44 @@ function AppContent() {
     });
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    if (authLoading || mobileRestoreDoneRef.current || !mobileResumeTabRef.current) return;
+    let hasSavedRoom = false;
+    try { hasSavedRoom = Boolean(sessionStorage.getItem('familink_mobile_room_resume')); } catch { /* session storage optional */ }
+    if (hasSavedRoom && !user) return;
+    mobileRestoreDoneRef.current = true;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const restoredRom = await restoreMobileRom();
+        if (!cancelled && restoredRom) setActiveRom(restoredRom);
+      } catch {
+        if (!cancelled) setStatusToast('Não consegui restaurar a ROM nesta sessão. Recarregue a ROM pela aba Console.');
+      }
+      if (cancelled) return;
+      try {
+        const savedRoom = sessionStorage.getItem('familink_mobile_room_resume');
+        if (savedRoom && user) {
+          const info = JSON.parse(savedRoom) as { roomCode?: string; role?: 'P1' | 'P2' };
+          if (info.roomCode && (info.role === 'P1' || info.role === 'P2')) {
+            const room = await fetchRoomByCode(info.roomCode);
+            if (room && room.status !== 'closed' &&
+              ((info.role === 'P1' && room.hostUid === user.uid) || (info.role === 'P2' && room.guestUid === user.uid))) {
+              if (!cancelled) {
+                setActiveRoom(room);
+                setRoomRole(info.role);
+              }
+            }
+          }
+        }
+        sessionStorage.removeItem('familink_mobile_room_resume');
+      } catch {
+        if (!cancelled) setStatusToast('A sala não pôde ser restaurada. Volte ao lobby e entre pelo código da sala.');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [authLoading, user?.uid]);
 
   useEffect(() => {
     if (!statusToast) return;
@@ -147,6 +199,28 @@ function AppContent() {
     user?.uid,
   ]);
 
+  const handleSelectTab = (tab: ActiveTab) => {
+    if (isAndroid6Phone && activeTab === 'console' && (tab === 'remote' || tab === 'local')) {
+      void (async () => {
+        try {
+          await saveMobileRom(activeRom);
+          if (activeRoom && roomRole) {
+            sessionStorage.setItem('familink_mobile_room_resume', JSON.stringify({ roomCode: activeRoom.roomCode, role: roomRole }));
+          } else {
+            sessionStorage.removeItem('familink_mobile_room_resume');
+          }
+          const url = new URL(window.location.href);
+          url.searchParams.set('mobileTab', tab);
+          window.location.replace(url.toString());
+        } catch {
+          setStatusToast('O celular não conseguiu liberar memória com segurança. O jogo e a sala foram mantidos abertos.');
+        }
+      })();
+      return;
+    }
+    setActiveTab(tab);
+  };
+
   const handleSignIn = () => {
     setAuthError(null);
     setShowAuthDialog(true);
@@ -191,7 +265,7 @@ function AppContent() {
     <div className="min-h-screen bg-[#0B0E14] text-[#F3F4F6] flex flex-col">
       <Navbar
         activeTab={activeTab}
-        onSelectTab={setActiveTab}
+        onSelectTab={handleSelectTab}
         user={user}
         authLoading={authLoading}
         onSignIn={() => void handleSignIn()}
