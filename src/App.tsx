@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { Unlock, Lock, Wifi, ShieldCheck, DoorOpen } from 'lucide-react';
 import { auth, logoutUser, syncUserProfile } from './firebase';
@@ -14,12 +14,13 @@ import {
 import { NetplayTransport, type NetplayTransportKind } from './netplay/NetplayEngine';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Navbar, type ActiveTab } from './components/Navbar';
-import { EmulatorViewport, type BiosFileItem, type PlayMode } from './components/EmulatorViewport';
-import { RomLibraryPanel } from './components/RomLibraryPanel';
-import { NetplayPanel } from './components/NetplayPanel';
-import { ControlsGuide } from './components/ControlsGuide';
-import { CoresAndDownloadsPanel } from './components/CoresAndDownloadsPanel';
-import { AndroidSdkPanel } from './components/AndroidSdkPanel';
+import type { BiosFileItem, PlayMode } from './components/EmulatorViewport';
+const EmulatorViewport = lazy(() => import('./components/EmulatorViewport').then((m) => ({ default: m.EmulatorViewport })));
+const RomLibraryPanel = lazy(() => import('./components/RomLibraryPanel').then((m) => ({ default: m.RomLibraryPanel })));
+const NetplayPanel = lazy(() => import('./components/NetplayPanel').then((m) => ({ default: m.NetplayPanel })));
+const ControlsGuide = lazy(() => import('./components/ControlsGuide').then((m) => ({ default: m.ControlsGuide })));
+const CoresAndDownloadsPanel = lazy(() => import('./components/CoresAndDownloadsPanel').then((m) => ({ default: m.CoresAndDownloadsPanel })));
+const AndroidSdkPanel = lazy(() => import('./components/AndroidSdkPanel').then((m) => ({ default: m.AndroidSdkPanel })));
 import type { BluetoothGamepadConfig } from './emulator/inputManager';
 
 function AppContent() {
@@ -216,6 +217,7 @@ function AppContent() {
       )}
 
       <main className="flex-1 min-w-0 max-w-[1400px] w-full mx-auto px-2 sm:px-6 py-3 sm:py-6">
+        <Suspense fallback={<div className="min-h-[30vh] flex items-center justify-center text-sm text-gray-400">Abrindo tela…</div>}>
         {activeTab === 'console' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -398,6 +400,7 @@ function AppContent() {
         {activeTab === 'cores' && <CoresAndDownloadsPanel />}
 
         {activeTab === 'android' && <AndroidSdkPanel />}
+        </Suspense>
       </main>
       {showAuthDialog && <AuthDialog onClose={() => setShowAuthDialog(false)} />}
     </div>
