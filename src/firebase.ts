@@ -1,8 +1,9 @@
 import { initializeApp } from 'firebase/app';
 import {
   getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
   signOut,
   type User,
 } from 'firebase/auth';
@@ -20,8 +21,6 @@ import firebaseConfig from '../firebase-applet-config.json';
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export const FIREBASE_PROJECT_INFO = {
   projectId: firebaseConfig.projectId,
@@ -94,10 +93,20 @@ async function testConnection(): Promise<void> {
 
 void testConnection();
 
-export async function signInWithEmailGoogle(): Promise<User> {
-  const result = await signInWithPopup(auth, googleProvider);
+export async function signInWithEmailPassword(email: string, password: string): Promise<User> {
+  const result = await signInWithEmailAndPassword(auth, email.trim(), password);
   await syncUserProfile(result.user);
   return result.user;
+}
+
+export async function createEmailAccount(email: string, password: string): Promise<User> {
+  const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
+  await syncUserProfile(result.user);
+  return result.user;
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  await sendPasswordResetEmail(auth, email.trim());
 }
 
 export async function logoutUser(): Promise<void> {

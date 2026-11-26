@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { Unlock, Lock, Wifi, ShieldCheck, DoorOpen } from 'lucide-react';
-import { auth, signInWithEmailGoogle, logoutUser, syncUserProfile } from './firebase';
+import { auth, logoutUser, syncUserProfile } from './firebase';
+import { AuthDialog } from './components/AuthDialog';
 import { REGION_LABELS, type ParsedRom } from './emulator/romUtils';
 import {
   subscribeToRoom,
@@ -26,6 +27,7 @@ function AppContent() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
 
   const [activeRom, setActiveRom] = useState<ParsedRom | null>(null);
   const [biosFiles, setBiosFiles] = useState<BiosFileItem[]>([]);
@@ -144,13 +146,9 @@ function AppContent() {
     user?.uid,
   ]);
 
-  const handleSignIn = async () => {
+  const handleSignIn = () => {
     setAuthError(null);
-    try {
-      await signInWithEmailGoogle();
-    } catch (err) {
-      setAuthError(err instanceof Error ? err.message : 'Falha ao autenticar com o Firebase.');
-    }
+    setShowAuthDialog(true);
   };
 
   const handleSignOut = async () => {
@@ -401,6 +399,7 @@ function AppContent() {
 
         {activeTab === 'android' && <AndroidSdkPanel />}
       </main>
+      {showAuthDialog && <AuthDialog onClose={() => setShowAuthDialog(false)} />}
     </div>
   );
 }

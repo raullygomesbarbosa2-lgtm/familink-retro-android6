@@ -44,7 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, onSelectTab, user, au
               <button type="button" onClick={onSignIn}
                 className="flex items-center gap-1 px-2 py-1.5 sm:gap-2 sm:px-4 sm:py-2 rounded-lg bg-[#E11D48] text-[10px] sm:text-xs font-semibold text-white whitespace-nowrap cursor-pointer">
                 <Mail className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                <span>Entrar</span>
+                <span>Entrar com e-mail</span>
               </button>
             )}
           </div>

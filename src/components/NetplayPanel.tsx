@@ -564,7 +564,7 @@ export const NetplayPanel: React.FC<NetplayPanelProps> = ({
           <div className="space-y-1 max-w-md mx-auto">
             <h3 className="text-lg font-semibold text-white">Entre com sua Conta de E-mail Firebase</h3>
             <p className="text-xs text-gray-400">
-              A autenticação via conta Google/E-mail garante identidade única para o Host (P1) liberar o acesso do Jogador 2 (P2) com segurança no Firestore.
+              Crie uma conta com e-mail e senha ou entre na sua conta. O acesso permite ao Host (P1) liberar o Jogador 2 (P2) com segurança.
             </p>
           </div>
           <button
