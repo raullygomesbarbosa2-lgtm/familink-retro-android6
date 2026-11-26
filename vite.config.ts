@@ -1,5 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import legacy from '@vitejs/plugin-legacy';
 import fs from 'fs';
 import path from 'path';
 import { defineConfig } from 'vite';
@@ -9,6 +10,7 @@ export default defineConfig(() => ({
   plugins: [
     react(),
     tailwindcss(),
+    legacy({ targets: ['Chrome >= 44'], modernTargets: ['Chrome >= 61'], polyfills: true, modernPolyfills: true, renderLegacyChunks: true }),
     {
       name: 'copy-unbundled-src-assets',
       apply: 'build',
@@ -22,6 +24,5 @@ export default defineConfig(() => ({
     },
   ],
   resolve: { alias: { '@': path.resolve(__dirname, '.') } },
-  build: { target: 'chrome57' },
   server: { hmr: process.env.DISABLE_HMR !== 'true', watch: process.env.DISABLE_HMR === 'true' ? null : {} },
 }));
