@@ -1,13 +1,11 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { Unlock, Lock, Wifi, ShieldCheck, DoorOpen } from 'lucide-react';
 import { auth, logoutUser, syncUserProfile } from './firebase';
 import { AuthDialog } from './components/AuthDialog';
 import { REGION_LABELS, type ParsedRom } from './emulator/romUtils';
-import { restoreMobileRom, saveMobileRom } from './emulator/mobileSession';
 import {
   subscribeToRoom,
-  fetchRoomByCode,
   hostUpdateGuestAccess,
   closeHostRoom,
   leaveRoomAsGuest,
@@ -16,13 +14,12 @@ import {
 import { NetplayTransport, type NetplayTransportKind } from './netplay/NetplayEngine';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Navbar, type ActiveTab } from './components/Navbar';
-import type { BiosFileItem, PlayMode } from './components/EmulatorViewport';
-const EmulatorViewport = lazy(() => import('./components/EmulatorViewport').then((m) => ({ default: m.EmulatorViewport })));
-const RomLibraryPanel = lazy(() => import('./components/RomLibraryPanel').then((m) => ({ default: m.RomLibraryPanel })));
-const NetplayPanel = lazy(() => import('./components/NetplayPanel').then((m) => ({ default: m.NetplayPanel })));
-const ControlsGuide = lazy(() => import('./components/ControlsGuide').then((m) => ({ default: m.ControlsGuide })));
-const CoresAndDownloadsPanel = lazy(() => import('./components/CoresAndDownloadsPanel').then((m) => ({ default: m.CoresAndDownloadsPanel })));
-const AndroidSdkPanel = lazy(() => import('./components/AndroidSdkPanel').then((m) => ({ default: m.AndroidSdkPanel })));
+import { EmulatorViewport, type BiosFileItem, type PlayMode } from './components/EmulatorViewport';
+import { RomLibraryPanel } from './components/RomLibraryPanel';
+import { NetplayPanel } from './components/NetplayPanel';
+import { ControlsGuide } from './components/ControlsGuide';
+import { CoresAndDownloadsPanel } from './components/CoresAndDownloadsPanel';
+import { AndroidSdkPanel } from './components/AndroidSdkPanel';
 import type { BluetoothGamepadConfig } from './emulator/inputManager';
 
 function AppContent() {
@@ -52,23 +49,11 @@ function AppContent() {
   const [initialInviteCode, setInitialInviteCode] = useState('');
 
   const transportRef = useRef<NetplayTransport | null>(null);
-  const mobileResumeTabRef = useRef<'remote' | 'local' | null>(null);
-  const mobileRestoreDoneRef = useRef(false);
   const [transportInstance, setTransportInstance] = useState<NetplayTransport | null>(null);
-
-  const isAndroid6Phone = typeof navigator !== 'undefined' && /Android 6\.0/i.test(navigator.userAgent);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const code = (params.get('room') || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-    const mobileTab = params.get('mobileTab');
-    if (mobileTab === 'remote' || mobileTab === 'local') {
-      mobileResumeTabRef.current = mobileTab;
-      setActiveTab(mobileTab);
-      params.delete('mobileTab');
-      const cleanUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ''}${window.location.hash}`;
-      window.history.replaceState(null, '', cleanUrl);
-    }
     if (code) {
       setInitialInviteCode(code);
       setActiveTab('remote');
@@ -85,44 +70,6 @@ function AppContent() {
     });
     return () => unsub();
   }, []);
-
-  useEffect(() => {
-    if (authLoading || mobileRestoreDoneRef.current || !mobileResumeTabRef.current) return;
-    let hasSavedRoom = false;
-    try { hasSavedRoom = Boolean(sessionStorage.getItem('familink_mobile_room_resume')); } catch { /* session storage optional */ }
-    if (hasSavedRoom && !user) return;
-    mobileRestoreDoneRef.current = true;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const restoredRom = await restoreMobileRom();
-        if (!cancelled && restoredRom) setActiveRom(restoredRom);
-      } catch {
-        if (!cancelled) setStatusToast('Não consegui restaurar a ROM nesta sessão. Recarregue a ROM pela aba Console.');
-      }
-      if (cancelled) return;
-      try {
-        const savedRoom = sessionStorage.getItem('familink_mobile_room_resume');
-        if (savedRoom && user) {
-          const info = JSON.parse(savedRoom) as { roomCode?: string; role?: 'P1' | 'P2' };
-          if (info.roomCode && (info.role === 'P1' || info.role === 'P2')) {
-            const room = await fetchRoomByCode(info.roomCode);
-            if (room && room.status !== 'closed' &&
-              ((info.role === 'P1' && room.hostUid === user.uid) || (info.role === 'P2' && room.guestUid === user.uid))) {
-              if (!cancelled) {
-                setActiveRoom(room);
-                setRoomRole(info.role);
-              }
-            }
-          }
-        }
-        sessionStorage.removeItem('familink_mobile_room_resume');
-      } catch {
-        if (!cancelled) setStatusToast('A sala não pôde ser restaurada. Volte ao lobby e entre pelo código da sala.');
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [authLoading, user?.uid]);
 
   useEffect(() => {
     if (!statusToast) return;
@@ -200,28 +147,6 @@ function AppContent() {
     user?.uid,
   ]);
 
-  const handleSelectTab = (tab: ActiveTab) => {
-    if (isAndroid6Phone && activeTab === 'console' && (tab === 'remote' || tab === 'local')) {
-      void (async () => {
-        try {
-          await saveMobileRom(activeRom);
-          if (activeRoom && roomRole) {
-            sessionStorage.setItem('familink_mobile_room_resume', JSON.stringify({ roomCode: activeRoom.roomCode, role: roomRole }));
-          } else {
-            sessionStorage.removeItem('familink_mobile_room_resume');
-          }
-          const url = new URL(window.location.href);
-          url.searchParams.set('mobileTab', tab);
-          window.location.replace(url.toString());
-        } catch {
-          setStatusToast('O celular não conseguiu liberar memória com segurança. O jogo e a sala foram mantidos abertos.');
-        }
-      })();
-      return;
-    }
-    setActiveTab(tab);
-  };
-
   const handleSignIn = () => {
     setAuthError(null);
     setShowAuthDialog(true);
@@ -266,7 +191,7 @@ function AppContent() {
     <div className="min-h-screen bg-[#0B0E14] text-[#F3F4F6] flex flex-col">
       <Navbar
         activeTab={activeTab}
-        onSelectTab={handleSelectTab}
+        onSelectTab={setActiveTab}
         user={user}
         authLoading={authLoading}
         onSignIn={() => void handleSignIn()}
@@ -292,7 +217,6 @@ function AppContent() {
       )}
 
       <main className="flex-1 min-w-0 max-w-[1400px] w-full mx-auto px-2 sm:px-6 py-3 sm:py-6">
-        <Suspense fallback={<div className="min-h-[30vh] flex items-center justify-center text-sm text-gray-400">Abrindo tela…</div>}>
         {activeTab === 'console' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -475,7 +399,6 @@ function AppContent() {
         {activeTab === 'cores' && <CoresAndDownloadsPanel />}
 
         {activeTab === 'android' && <AndroidSdkPanel />}
-        </Suspense>
       </main>
       {showAuthDialog && <AuthDialog onClose={() => setShowAuthDialog(false)} />}
     </div>

@@ -109,13 +109,9 @@ function getSafeGamepads(): Gamepad[] {
     const raw = getPads.call(navigator);
     if (!raw || typeof raw.length !== 'number') return [];
     const pads: Gamepad[] = [];
-    for (let i = 0; i < raw.length; i++) {
-      const pad = raw[i];
-      if (pad && pad.connected) pads.push(pad);
-    }
+    for (let i = 0; i < raw.length; i++) if (raw[i]?.connected) pads.push(raw[i] as Gamepad);
     return pads;
   } catch {
-    // Android 6 browsers can expose the API but throw until a button is pressed.
     return [];
   }
 }
@@ -125,7 +121,6 @@ export function listConnectedGamepads(): DetectedBluetoothGamepad[] {
   const list: DetectedBluetoothGamepad[] = [];
   for (let i = 0; i < raw.length; i++) {
     const gp = raw[i];
-    if (!gp.connected) continue;
     if (!gp || !gp.connected) continue;
     const pressedIndices: number[] = [];
     gp.buttons.forEach((b, idx) => {
@@ -191,20 +186,18 @@ export function readGamepadMask(
     if (btnTop) mask |= 1 << 9;
   }
 
-  // Standard and most Android HID mappings share these extra button positions.
-  // Keep a fallback for generic Bluetooth/USB D-Input pads on older browsers.
+  // Generic Bluetooth/USB D-Input mappings: use common face/shoulder layout.
   if (buttons.length >= 12) {
-    if (pressed(4)) mask |= 1 << 10;  // L1 / LB
-    if (pressed(5)) mask |= 1 << 11;  // R1 / RB
-    if (pressed(6)) mask |= 1 << 12;  // L2 / LT
-    if (pressed(7)) mask |= 1 << 13;  // R2 / RT
-    if (pressed(8)) mask |= 1 << 2;   // Select / Share
-    if (pressed(9)) mask |= 1 << 3;   // Start / Options
-    if (pressed(10)) mask |= 1 << 14; // L3
-    if (pressed(11)) mask |= 1 << 15; // R3
+    if (pressed(4)) mask |= 1 << 10;
+    if (pressed(5)) mask |= 1 << 11;
+    if (pressed(6)) mask |= 1 << 12;
+    if (pressed(7)) mask |= 1 << 13;
+    if (pressed(8)) mask |= 1 << 2;
+    if (pressed(9)) mask |= 1 << 3;
+    if (pressed(10)) mask |= 1 << 14;
+    if (pressed(11)) mask |= 1 << 15;
   }
 
-  // Standard D-pad buttons (12..15), where present, and left stick fallback.
   const axX = axes[0] ?? 0;
   const axY = axes[1] ?? 0;
   if ((buttons.length >= 16 && pressed(12)) || axY < -deadzone) mask |= 1 << 4;
