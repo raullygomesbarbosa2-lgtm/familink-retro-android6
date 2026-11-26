@@ -192,18 +192,22 @@ export const EmulatorViewport: React.FC<EmulatorViewportProps> = ({
 
   // Auto-detect Bluetooth / USB controllers immediately & on connect/disconnect
   useEffect(() => {
+    let lastSignature = '';
     const syncPads = () => {
       const pads = listConnectedGamepads();
-      setConnectedPads(pads);
+      const signature = pads.map((pad) => `${pad.index}:${pad.id}:${pad.mapping}:${pad.buttonsCount}:${pad.axesCount}:${pad.pressedIndices.join(',')}`).join('|');
+      if (signature !== lastSignature) {
+        lastSignature = signature;
+        setConnectedPads(pads);
+      }
     };
     syncPads();
-    const onConnect = (ev: GamepadEvent) => {
+    const onConnect = (ev: Event) => {
       syncPads();
-      onStatusMessage?.(`Controle Bluetooth/USB conectado automaticamente: ${ev.gamepad.id}`);
+      const gamepad = (ev as GamepadEvent).gamepad;
+      onStatusMessage?.(`Controle Bluetooth/USB conectado: ${gamepad?.id || 'genérico'}. Jogo mantido sem reiniciar.`);
     };
-    const onDisconnect = () => {
-      syncPads();
-    };
+    const onDisconnect = () => syncPads();
     window.addEventListener('gamepadconnected', onConnect);
     window.addEventListener('gamepaddisconnected', onDisconnect);
     const id = window.setInterval(syncPads, 1000);

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { Unlock, Lock, Wifi, ShieldCheck, DoorOpen } from 'lucide-react';
 import { auth, logoutUser, syncUserProfile } from './firebase';
@@ -48,6 +48,7 @@ function AppContent() {
   const [transportKind, setTransportKind] = useState<NetplayTransportKind>('disconnected');
   const [pingMs, setPingMs] = useState<number | null>(null);
   const [statusToast, setStatusToast] = useState<string | null>(null);
+  const handleEmulatorStatusMessage = useCallback((message: string) => setStatusToast(message), []);
   const [initialInviteCode, setInitialInviteCode] = useState('');
 
   const transportRef = useRef<NetplayTransport | null>(null);
@@ -304,7 +305,7 @@ function AppContent() {
                   netplayTransport={transportInstance}
                   inputDelay={activeRoom?.inputDelay ?? 1}
                   btConfig={btConfig}
-                  onStatusMessage={(msg) => setStatusToast(msg)}
+                  onStatusMessage={handleEmulatorStatusMessage}
                   onToggleControlsGuide={() => setShowControlsGuide((v) => !v)}
                 />
               </div>

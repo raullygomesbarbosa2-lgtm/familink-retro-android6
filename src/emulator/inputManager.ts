@@ -101,12 +101,31 @@ export function inferGamepadBrand(id: string): string {
   return 'Controle Bluetooth / USB Genérico';
 }
 
+function getSafeGamepads(): Gamepad[] {
+  if (typeof navigator === 'undefined') return [];
+  try {
+    const getPads = navigator.getGamepads || (navigator as Navigator & { webkitGetGamepads?: () => (Gamepad | null)[] }).webkitGetGamepads;
+    if (typeof getPads !== 'function') return [];
+    const raw = getPads.call(navigator);
+    if (!raw || typeof raw.length !== 'number') return [];
+    const pads: Gamepad[] = [];
+    for (let i = 0; i < raw.length; i++) {
+      const pad = raw[i];
+      if (pad && pad.connected) pads.push(pad);
+    }
+    return pads;
+  } catch {
+    // Android 6 browsers can expose the API but throw until a button is pressed.
+    return [];
+  }
+}
+
 export function listConnectedGamepads(): DetectedBluetoothGamepad[] {
-  if (typeof navigator === 'undefined' || !navigator.getGamepads) return [];
-  const raw = navigator.getGamepads();
+  const raw = getSafeGamepads();
   const list: DetectedBluetoothGamepad[] = [];
   for (let i = 0; i < raw.length; i++) {
     const gp = raw[i];
+    if (!gp.connected) continue;
     if (!gp || !gp.connected) continue;
     const pressedIndices: number[] = [];
     gp.buttons.forEach((b, idx) => {
@@ -133,8 +152,7 @@ export function readGamepadMask(
   port: 0 | 1,
   config?: Partial<BluetoothGamepadConfig>
 ): number {
-  if (typeof navigator === 'undefined' || !navigator.getGamepads) return 0;
-  const pads = Array.from(navigator.getGamepads()).filter((g): g is Gamepad => Boolean(g && g.connected));
+  const pads = getSafeGamepads();
   if (pads.length === 0) return 0;
 
   let pad: Gamepad | undefined;
@@ -150,7 +168,9 @@ export function readGamepadMask(
   const swap = Boolean(config?.swapFaceButtons);
 
   let mask = 0;
-  const pressed = (idx: number) => Boolean(pad.buttons[idx]?.pressed || (pad.buttons[idx]?.value ?? 0) > 0.45);
+  const buttons = pad.buttons || [];
+  const axes = pad.axes || [];
+  const pressed = (idx: number) => Boolean(buttons[idx]?.pressed || (buttons[idx]?.value ?? 0) > 0.45);
 
   // Face buttons (Standard PlayStation / Xbox / Switch / Generic Bluetooth)
   // Standard W3C: 0=Bottom (Cruz ✕ / A), 1=Right (Círculo ○ / B), 2=Left (Quadrado □ / X), 3=Top (Triângulo △ / Y)
@@ -171,35 +191,30 @@ export function readGamepadMask(
     if (btnTop) mask |= 1 << 9;
   }
 
-  // Fallback indices for non-standard D-Input Bluetooth pads (Ípega/Mocute Android HID)
-  if (pad.mapping !== 'standard' && pad.buttons.length >= 12) {
-    if (pressed(4)) mask |= 1 << 9;   // some BT pads put Y on 4
-    if (pressed(6)) mask |= 1 << 10;  // L1
-    if (pressed(7)) mask |= 1 << 11;  // R1
-    if (pressed(10)) mask |= 1 << 2;  // Select
-    if (pressed(11)) mask |= 1 << 3;  // Start
-  } else {
-    if (pressed(4)) mask |= 1 << 10;  // L1
-    if (pressed(5)) mask |= 1 << 11;  // R1
-    if (pressed(6)) mask |= 1 << 12;  // L2
-    if (pressed(7)) mask |= 1 << 13;  // R2
+  // Standard and most Android HID mappings share these extra button positions.
+  // Keep a fallback for generic Bluetooth/USB D-Input pads on older browsers.
+  if (buttons.length >= 12) {
+    if (pressed(4)) mask |= 1 << 10;  // L1 / LB
+    if (pressed(5)) mask |= 1 << 11;  // R1 / RB
+    if (pressed(6)) mask |= 1 << 12;  // L2 / LT
+    if (pressed(7)) mask |= 1 << 13;  // R2 / RT
     if (pressed(8)) mask |= 1 << 2;   // Select / Share
     if (pressed(9)) mask |= 1 << 3;   // Start / Options
     if (pressed(10)) mask |= 1 << 14; // L3
     if (pressed(11)) mask |= 1 << 15; // R3
   }
 
-  // Standard D-Pad buttons (12..15) + Left Analog Stick (axes 0, 1)
-  const axX = pad.axes[0] ?? 0;
-  const axY = pad.axes[1] ?? 0;
-  if (pressed(12) || axY < -deadzone) mask |= 1 << 4; // Up
-  if (pressed(13) || axY > deadzone) mask |= 1 << 5;  // Down
-  if (pressed(14) || axX < -deadzone) mask |= 1 << 6; // Left
-  if (pressed(15) || axX > deadzone) mask |= 1 << 7;  // Right
+  // Standard D-pad buttons (12..15), where present, and left stick fallback.
+  const axX = axes[0] ?? 0;
+  const axY = axes[1] ?? 0;
+  if ((buttons.length >= 16 && pressed(12)) || axY < -deadzone) mask |= 1 << 4;
+  if ((buttons.length >= 16 && pressed(13)) || axY > deadzone) mask |= 1 << 5;
+  if ((buttons.length >= 16 && pressed(14)) || axX < -deadzone) mask |= 1 << 6;
+  if ((buttons.length >= 16 && pressed(15)) || axX > deadzone) mask |= 1 << 7;
 
   // Android / Generic Bluetooth POV Hat Switch on axes[9]
-  if (pad.axes.length > 9) {
-    const hat = pad.axes[9];
+  if (axes.length > 9) {
+    const hat = axes[9];
     if (hat >= -1.05 && hat <= 1.05) {
       // Standard Android/Linux HID hat encoding: -1=Up, -0.43=Right, +0.14=Down, +0.71=Left
       if (hat < -0.75 || hat > 0.85) mask |= 1 << 4;
