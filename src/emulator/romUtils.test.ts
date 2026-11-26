@@ -11,7 +11,15 @@ async function zipWith(entries: Record<string, Uint8Array>): Promise<Uint8Array>
 }
 
 describe('ZIP arcade versus ROM de console', () => {
-  test('leaves an Arcade ZIP as Arcade even when an internal file ends in .sms', async () => {
+  test('extracts a single Master System ROM from a user-supplied ZIP', async () => {
+    const bytes = await zipWith({ 'Streets of Rage II (Europe).sms': payload });
+    const parsed = await parseRomFile('Streets of Rage II (Europe).zip', bytes);
+    expect(parsed.consoleId).toBe('mastersystem');
+    expect(parsed.name).toBe('Streets of Rage II (Europe).sms');
+    expect(parsed.bytes).toEqual(payload);
+  });
+
+  test('does not mistake a multi-file Arcade ZIP for Master System when one part ends in .sms', async () => {
     const bytes = await zipWith({
       'sor2.sms': payload,
       'chip1.bin': payload,
@@ -23,18 +31,8 @@ describe('ZIP arcade versus ROM de console', () => {
     expect(parsed.bytes).toEqual(bytes);
   });
 
-  test('opens a console ROM ZIP when the user explicitly selects Master System', async () => {
-    const bytes = await zipWith({ 'Streets of Rage II (Europe).sms': payload });
-    const parsed = await parseRomFile('Streets of Rage II (Europe).zip', bytes, {
-      consoleOverride: 'mastersystem',
-    });
-    expect(parsed.consoleId).toBe('mastersystem');
-    expect(parsed.name).toBe('Streets of Rage II (Europe).sms');
-    expect(parsed.bytes).toEqual(payload);
-  });
-
   test('honors an explicitly selected Arcade core and preserves the ZIP', async () => {
-    const bytes = await zipWith({ 'game.sms': payload });
+    const bytes = await zipWith({ 'game.sms': payload, 'chip.bin': payload });
     const parsed = await parseRomFile('game.zip', bytes, { consoleOverride: 'arcade' });
     expect(parsed.consoleId).toBe('arcade');
     expect(parsed.bytes).toEqual(bytes);

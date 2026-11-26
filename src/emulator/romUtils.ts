@@ -171,20 +171,37 @@ export async function parseRomFile(
   const isZip = lower.endsWith('.zip') || isZipBytes;
   const explicitNonArcade = Boolean(options?.consoleOverride && !isArcadeConsoleId(options.consoleOverride));
 
-  if (isZip && explicitNonArcade) {
+  if (isZip) {
     try {
       const zip = await JSZip.loadAsync(bytes);
       const entries = Object.values(zip.files).filter((f) => !f.dir && !f.name.toLowerCase().endsWith('.zip'));
-      const requested = getConsoleSpecById(options!.consoleOverride!);
-      const candidates = entries.filter((entry) => requested.extensions.some((ext) => entry.name.toLowerCase().endsWith(ext)));
-      if (candidates.length !== 1) {
+      const requested = options?.consoleOverride && !isArcadeConsoleId(options.consoleOverride)
+        ? getConsoleSpecById(options.consoleOverride)
+        : null;
+      const supportedConsoleEntries = entries.filter((entry) => {
+        const entryName = entry.name.toLowerCase();
+        const spec = detectConsoleFromExtension(entry.name);
+        if (!spec || isArcadeConsoleId(spec.id)) return false;
+        if (entryName.endsWith('.bin') && entries.length > 1) return false;
+        return requested ? requested.extensions.some((ext) => entryName.endsWith(ext)) : true;
+      });
+      const arcadeLikeParts = entries.filter((entry) => {
+        const entryName = entry.name.toLowerCase();
+        return entryName.endsWith('.bin') || /\.(rom|ic\d+|prg|chr|gfx|u\d+|s\d+)$/i.test(entryName);
+      });
+
+      // Um ZIP de console com uma única ROM (ex.: Streets of Rage II.zip
+      // contendo Streets of Rage II.sms) precisa ser extraído. Se vier junto
+      // com várias peças, preservamos o pacote: esse é o formato dos jogos Arcade.
+      if (supportedConsoleEntries.length === 1 && arcadeLikeParts.length === 0) {
+        const entry = supportedConsoleEntries[0];
+        const extracted = new Uint8Array(await entry.async('arraybuffer'));
+        if (extracted.length >= 16) {
+          effectiveName = entry.name.split('/').pop() || entry.name;
+          effectiveBytes = extracted;
+        }
+      } else if (requested) {
         throw new Error(`ZIP de ${requested.shortName} precisa conter uma única ROM ${requested.extensions.join(' ou ')}. Para jogos Arcade, selecione um núcleo Arcade.`);
-      }
-      const entry = candidates[0];
-      const extracted = new Uint8Array(await entry.async('arraybuffer'));
-      if (extracted.length >= 16) {
-        effectiveName = entry.name.split('/').pop() || entry.name;
-        effectiveBytes = extracted;
       }
     } catch (err) {
       if (err instanceof Error && err.message.startsWith('ZIP de ')) throw err;
